@@ -17,7 +17,7 @@
          handle_exit/3]).
 
 start_vnode(I) ->
-    riak_core_vnode_master:get_vnode(I, ?MODULE).
+    riak_core_vnode_master:get_vnode_pid(I, ?MODULE).
 
 init([Partition]) ->
     {ok, #{partition => Partition}}.

@@ -22,17 +22,19 @@ init_per_suite(Config) ->
     start_node(Node3, 8398, 8399),
     build_cluster(Node1, Node2, Node3),
 
-    [{node1, Node1},
-        {node2, Node2},
-        {node3, Node3} | Config].
+    [{nodes, [Node1, Node2, Node3]} | Config].
 
 end_per_suite(Config) ->
-    Node1 = ?config(node1, Config),
-    Node2 = ?config(node2, Config),
-    Node3 = ?config(node3, Config),
-    stop_node(Node1),
-    stop_node(Node2),
-    stop_node(Node3),
+    Nodes = ?config(nodes, Config),
+    %Node2 = ?config(node2, Config),
+    %Node3 = ?config(node3, Config),
+    lists:foreach(
+        fun(Node) ->
+            stop_node(Node)
+        end, Nodes),
+    %stop_node(Node1),
+    %stop_node(Node2),
+    %stop_node(Node3),
     ok.
 
 %% =============================================================================
@@ -40,24 +42,26 @@ end_per_suite(Config) ->
 %% =============================================================================
 
 ping_test(Config) ->
-    Node1 = ?config(node1, Config),
-    Node2 = ?config(node2, Config),
-    Node3 = ?config(node3, Config),
+    Nodes = ?config(nodes, Config),
 
-    {pong, _Partition1} = rc_command(Node1, ping),
-    {pong, _Partition2} = rc_command(Node2, ping),
-    {pong, _Partition3} = rc_command(Node3, ping),
+    lists:foreach(
+        fun(Node) ->
+            {pong, _Partition} = rc_command(Node, ping)
+        end, Nodes),
 
     ok.
 
 key_value_test(Config) ->
-    Node1 = ?config(node1, Config),
-    Node2 = ?config(node2, Config),
-    Node3 = ?config(node3, Config),
+    [Node1, Node2, Node3] = ?config(nodes, Config),
 
-    ok = rc_command(Node1, put, [k1, v1]),
-    ok = rc_command(Node1, put, [k2, v2]),
-    ok = rc_command(Node1, put, [k3, v3]),
+    KVProp = [{k1,v1}, {k2, v2}, {k3, v3}],
+    lists:foreach(
+        fun({K,V}) ->
+            ok = rc_command(Node1, put, [K,V])
+        end, KVProp),
+    %%ok = rc_command(Node1, put, [k1, v1]),
+    %%ok = rc_command(Node1, put, [k2, v2]),
+    %%ok = rc_command(Node1, put, [k3, v3]),
 
     %%% GET FROM ANY OF THE NODES
     v1 = rc_command(Node1, get, [k1]),
@@ -87,9 +91,8 @@ key_value_test(Config) ->
     ok.
 
 exist_test(Config) ->
-    Node1 = ?config(node1, Config),
-    Node2 = ?config(node2, Config),
-    Node3 = ?config(node3, Config),
+
+    [Node1, Node2, Node3 | _] = ?config(nodes, Config),
 
     %% For nice tests
     Nodes = [Node1, Node2, Node3],

@@ -52,32 +52,28 @@ ping_test(Config) ->
     ok.
 
 key_value_test(Config) ->
-    [Node1, Node2, Node3] = ?config(nodes, Config),
+    Nodes = [Node1 | _ ] = ?config(nodes, Config),
 
     KVProp = [{k1,v1}, {k2, v2}, {k3, v3}],
     lists:foreach(
         fun({K,V}) ->
             ok = rc_command(Node1, put, [K,V])
         end, KVProp),
-    %%ok = rc_command(Node1, put, [k1, v1]),
-    %%ok = rc_command(Node1, put, [k2, v2]),
-    %%ok = rc_command(Node1, put, [k3, v3]),
 
-    %%% GET FROM ANY OF THE NODES
-    v1 = rc_command(Node1, get, [k1]),
-    v2 = rc_command(Node1, get, [k2]),
-    v3 = rc_command(Node1, get, [k3]),
-    not_found = rc_command(Node1, get, [k10]),
+    %%% GET FROM ALL OF THE NODES
+    lists:foreach(
+        fun(Node) ->
+            lists:foreach(
+                fun({K,V}) ->
+                    V = rc_command(Node, get, [K])
+                end, KVProp)
+        end, Nodes),
 
-    v1 = rc_command(Node2, get, [k1]),
-    v2 = rc_command(Node2, get, [k2]),
-    v3 = rc_command(Node2, get, [k3]),
-    not_found = rc_command(Node2, get, [k10]),
-
-    v1 = rc_command(Node3, get, [k1]),
-    v2 = rc_command(Node3, get, [k2]),
-    v3 = rc_command(Node3, get, [k3]),
-    not_found = rc_command(Node3, get, [k10]),
+    lists:foreach(
+        fun(Node) ->
+            not_found = rc_command(Node, get, [k10])
+        end, Nodes
+    ),
 
     %% TEST RESET AND DELETE
     ok = rc_command(Node1, put, [k1, v_new]),

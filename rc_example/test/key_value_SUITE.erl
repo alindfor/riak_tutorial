@@ -4,6 +4,8 @@
 
 -compile(export_all).
 
+-define(NAME(Node), element(1, Node)).
+
 all() ->
   [
       ping_test,
@@ -12,29 +14,27 @@ all() ->
   ].
 
 init_per_suite(Config) ->
-    Node1 = 'node1@127.0.0.1',
-    Node2 = 'node2@127.0.0.1',
-    Node3 = 'node3@127.0.0.1',
+    Nodes =
+        [
+            {'node1@127.0.0.1', 8198, 8199},
+            {'node2@127.0.0.1', 8298, 8299},
+            {'node3@127.0.0.1', 8398, 8399}
+        ],
 
+    lists:foreach(
+        fun({Node, WPort, HPort}) ->
+            start_node(Node, WPort, HPort)
+        end, Nodes
+    ),
 
-    start_node(Node1, 8198, 8199),
-    start_node(Node2, 8298, 8299),
-    start_node(Node3, 8398, 8399),
-    build_cluster(Node1, Node2, Node3),
-
-    [{nodes, [Node1, Node2, Node3]} | Config].
+    %% build_cluster will join the nodes in a cluster and return a list of the node names
+    [{nodes, build_cluster(Nodes)} | Config].
 
 end_per_suite(Config) ->
-    Nodes = ?config(nodes, Config),
-    %Node2 = ?config(node2, Config),
-    %Node3 = ?config(node3, Config),
     lists:foreach(
         fun(Node) ->
             stop_node(Node)
-        end, Nodes),
-    %stop_node(Node1),
-    %stop_node(Node2),
-    %stop_node(Node3),
+        end, ?config(nodes, Config)),
     ok.
 
 %% =============================================================================
@@ -42,12 +42,10 @@ end_per_suite(Config) ->
 %% =============================================================================
 
 ping_test(Config) ->
-    Nodes = ?config(nodes, Config),
-
     lists:foreach(
         fun(Node) ->
             {pong, _Partition} = rc_command(Node, ping)
-        end, Nodes),
+        end, ?config(nodes, Config)),
 
     ok.
 
@@ -72,8 +70,7 @@ key_value_test(Config) ->
     lists:foreach(
         fun(Node) ->
             not_found = rc_command(Node, get, [k10])
-        end, Nodes
-    ),
+        end, Nodes),
 
     %% TEST RESET AND DELETE
     ok = rc_command(Node1, put, [k1, v_new]),
@@ -87,12 +84,9 @@ key_value_test(Config) ->
     ok.
 
 exist_test(Config) ->
-
-    [Node1, Node2, Node3 | _] = ?config(nodes, Config),
-
-    %% For nice tests
-    Nodes = [Node1, Node2, Node3],
+    Nodes = [Node1 |_ ] = ?config(nodes, Config),
     KVProp = [{k12, v1}, {k150, v2}, {k1024, v3}],
+
     %% Iterate over each KV pair and insert it on Node1
     lists:foreach(
         fun({K,V}) ->
@@ -112,7 +106,7 @@ exist_test(Config) ->
     False = [k177, k1337, k9000],
     lists:foreach(
         fun(K) ->
-            false = rc_command(Node2, exist, [K])
+            false = rc_command(Node1, exist, [K])
         end, False),
     ok.
 
@@ -142,10 +136,15 @@ start_node(NodeName, WebPort, HandoffPort) ->
 stop_node(NodeName) ->
     ct_slave:stop(NodeName).
 
-build_cluster(Node1, Node2, Node3) ->
-    rpc:call(Node2, riak_core, join, [Node1]),
-    rpc:call(Node3, riak_core, join, [Node1]),
-    ok.
+build_cluster(Nodes) when is_list(Nodes) ->
+    build_cluster(Nodes, []).
+
+build_cluster([N1, N2], BuiltNodes) ->
+    rpc:call(?NAME(N2), riak_core, join, [?NAME(N1)]),
+    [?NAME(N1), ?NAME(N2) | BuiltNodes];
+build_cluster([N1, N2 | T], BuiltNodes) ->
+    rpc:call(?NAME(N2), riak_core, join, [?NAME(N1)]),
+    build_cluster([N1 | T], [?NAME(N2) | BuiltNodes]).
 
 rc_command(Node, Command) ->
     rc_command(Node, Command, []).

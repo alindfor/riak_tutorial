@@ -115,7 +115,7 @@ coverage_test(Config) ->
     [Node1, Node2|_] = ?config(nodes, Config),
 
     ok = rc_command(Node1, clear),
-    [] - rc_coverage(Node1, keys),
+    [] = rc_coverage(Node1, keys),
     [] = rc_coverage(Node1, values),
 
     ToKey =

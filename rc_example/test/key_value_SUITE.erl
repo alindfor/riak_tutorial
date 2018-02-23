@@ -1,7 +1,7 @@
 -module(key_value_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
-
+-include_lib("eunit/include/eunit.hrl").
 -compile(export_all).
 
 -define(NAME(Node), element(1, Node)).
@@ -11,7 +11,8 @@ all() ->
       ping_test,
       key_value_test,
       exist_test,
-      coverage_test
+      coverage_test,
+      numbers_test
   ].
 
 init_per_suite(Config) ->
@@ -25,8 +26,7 @@ init_per_suite(Config) ->
     lists:foreach(
         fun({Node, WPort, HPort}) ->
             start_node(Node, WPort, HPort)
-        end, Nodes
-    ),
+        end, Nodes),
 
     %% build_cluster will join the nodes in a cluster and return a list of the node names
     [{nodes, build_cluster(Nodes)} | Config].
@@ -46,9 +46,7 @@ ping_test(Config) ->
     lists:foreach(
         fun(Node) ->
             {pong, _Partition} = rc_command(Node, ping)
-        end, ?config(nodes, Config)),
-
-    ok.
+        end, ?config(nodes, Config)).
 
 key_value_test(Config) ->
     Nodes = [Node1 | _ ] = ?config(nodes, Config),
@@ -56,7 +54,7 @@ key_value_test(Config) ->
     KVProp = [{k1,v1}, {k2, v2}, {k3, v3}],
     lists:foreach(
         fun({K,V}) ->
-            ok = rc_command(Node1, put, [K,V])
+            ?assertEqual(rc_command(Node1, put, [K,V]), ok)
         end, KVProp),
 
     %%% GET FROM ALL OF THE NODES
@@ -64,25 +62,24 @@ key_value_test(Config) ->
         fun(Node) ->
             lists:foreach(
                 fun({K,V}) ->
-                    V = rc_command(Node, get, [K])
+                    ?assertEqual(rc_command(Node, get, [K]), V)
                 end, KVProp)
         end, Nodes),
 
     lists:foreach(
         fun(Node) ->
-            not_found = rc_command(Node, get, [k10])
+            ?assertEqual(rc_command(Node, get, [k10]), not_found)
         end, Nodes),
 
     %% TEST RESET AND DELETE
-    ok = rc_command(Node1, put, [k1, v_new]),
-    v_new = rc_command(Node1, get, [k1]),
+    ?assertEqual(rc_command(Node1, put, [k1, v_new]), ok),
+    ?assertEqual(rc_command(Node1, get, [k1]), v_new),
 
-    v_new = rc_command(Node1, delete, [k1]),
-    not_found = rc_command(Node1, get, [k1]),
+    ?assertEqual(rc_command(Node1, delete, [k1]), v_new),
+    ?assertEqual(rc_command(Node1, get, [k1]), not_found),
 
-    ok = rc_command(Node1, put, [k1, v_new]),
-    v_new = rc_command(Node1, get, [k1]),
-    ok.
+    ?assertEqual(rc_command(Node1, put, [k1, v_new]), ok),
+    ?assertEqual(rc_command(Node1, get, [k1]), v_new).
 
 exist_test(Config) ->
     Nodes = [Node1 |_ ] = ?config(nodes, Config),
@@ -91,7 +88,7 @@ exist_test(Config) ->
     %% Iterate over each KV pair and insert it on Node1
     lists:foreach(
         fun({K,V}) ->
-            ok = rc_command(Node1, put, [K, V])
+            ?assertEqual(rc_command(Node1, put, [K, V]), ok)
         end, KVProp),
 
     %% Iterate over each Node, check that all inserted KV pairs are available
@@ -99,24 +96,23 @@ exist_test(Config) ->
         fun(Node) ->
             lists:foreach(
                 fun({K, _}) ->
-                    true = rc_command(Node, exist, [K])
+                    ?assert(rc_command(Node, exist, [K]))
                 end, KVProp)
         end, Nodes),
 
     %% Check the false case of the exist functionality
-    False = [k177, k1337, k9000],
+    NonExistentKeys = [k177, k1337, k9000],
     lists:foreach(
         fun(K) ->
-            false = rc_command(Node1, exist, [K])
-        end, False),
-    ok.
+            ?assertNot(rc_command(Node1, exist, [K]))
+        end, NonExistentKeys).
 
 coverage_test(Config) ->
     [Node1, Node2|_] = ?config(nodes, Config),
 
-    ok = rc_command(Node1, clear),
-    [] = rc_coverage(Node1, keys),
-    [] = rc_coverage(Node1, values),
+    ?assertEqual(rc_command(Node1, clear), ok),
+    ?assertEqual(rc_coverage(Node1, keys), []),
+    ?assertEqual(rc_coverage(Node1, values), []),
 
     ToKey =
         fun(N) ->
@@ -132,27 +128,54 @@ coverage_test(Config) ->
 
     lists:foreach(
         fun(N) ->
-            ok = rc_command(Node1, put, [ToKey(N), ToValue(N)])
+            ?assertEqual(rc_command(Node1, put, [ToKey(N), ToValue(N)]), ok)
         end, Range
     ),
 
     ActualKeys = rc_coverage(Node2, keys),
     ActualValues = rc_coverage(Node2, values),
 
-    100 = length(ActualKeys),
-    100 = length(ActualValues),
+    ?assertEqual(length(ActualKeys), 100),
+    ?assertEqual(length(ActualValues), 100),
 
-    true = have_same_elements(ActualKeys, lists:map(ToKey, Range)),
-    true = have_same_elements(ActualValues, lists:map(ToValue, Range)),
+    ?assert(have_same_elements(ActualKeys, lists:map(ToKey, Range))),
+    ?assert(have_same_elements(ActualValues, lists:map(ToValue, Range))),
 
-    ok = rc_command(Node1, clear),
-    [] = rc_coverage(Node1, keys),
-    [] = rc_coverage(Node1, values),
+    ?assertEqual(rc_command(Node1, clear), ok),
+    ?assertEqual(rc_coverage(Node1, keys), []),
+    ?assertEqual(rc_coverage(Node1, values), []).
 
-    ok.
+numbers_test(Config) ->
+    Nodes = [Node1 | _ ] = ?config(nodes, Config),
+
+    KVProp =
+        [{one, 1},
+        {two, 2},
+        {three, "three"},
+        {four, 4.0},
+        {five, five},
+        {six, 6},
+        {six2, 6}],
+
+    lists:foreach(
+        fun({K,V}) ->
+             ?assertEqual(rc_command(Node1, put, [K,V]), ok)
+        end, KVProp),
+
+    CodedNumbers = extract_numbers(KVProp),
+
+    lists:foreach(
+        fun(Node) ->
+            InsertedNumbers = rc_coverage(Node, numbers),
+            ?assertEqual(lists:sort(InsertedNumbers), CodedNumbers)
+        end, Nodes).
+
 %% =============================================================================
 %% Internal Test HELPERS
 %% =============================================================================
+
+extract_numbers(L) ->
+    [ X || {_,X} <- lists:filter(fun({_, N}) -> is_number(N) end, L) ].
 
 start_node(NodeName, WebPort, HandoffPort) ->
     %% Need to set the code path so the same modules are available in the slaves
@@ -203,3 +226,9 @@ have_same_elements(L1, L2) ->
     S1 = sets:from_list(L1),
     S2 = sets:from_list(L2),
     sets:is_subset(S1, S2) andalso sets:is_subset(S2,S1).
+
+print(F, A) ->
+    lists:foreach(
+        fun(Arg) ->
+            ct:pal(?MAX_IMPORTANCE, F, [Arg])
+        end, A).

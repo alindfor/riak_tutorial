@@ -112,6 +112,16 @@ delete(State) ->
   log("deleting the vnode data", State),
   {ok, State#{data => #{}}}.
 
+handle_coverage(numbers, _KeySpaces, {_, ReqId, _}, State = #{data := Data}) ->
+    log("Received request for all numbers", State),
+    Numbers =
+        maps:values(
+            maps:filter(
+                fun(_,V) ->
+                    is_number(V)
+                end, Data)
+        ),
+    {reply, {ReqId, Numbers}, State};
 handle_coverage(clear, _KeySpaces, {_, ReqId, _}, State) ->
     log("Received clear coverage", State),
     NewState = State#{data => #{}},

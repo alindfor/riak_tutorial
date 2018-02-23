@@ -112,20 +112,28 @@ delete(State) ->
   log("deleting the vnode data", State),
   {ok, State#{data => #{}}}.
 
-handle_coverage(keys, _KeySpaces, {_, ReqId, _}, State = #{data := Data}) ->
-  log("Received keys coverage", State),
-  Keys = maps:keys(Data),
-  {reply, {ReqId, Keys}, State};
-
-handle_coverage(values, _KeySpaces, {_, ReqId, _}, State = #{data := Data}) ->
-  log("Received values coverage", State),
-  Values = maps:values(Data),
-  {reply, {ReqId, Values}, State};
-
+handle_coverage(numbers, _KeySpaces, {_, ReqId, _}, State = #{data := Data}) ->
+    log("Received request for all numbers", State),
+    Numbers =
+        maps:values(
+            maps:filter(
+                fun(_,V) ->
+                    is_number(V)
+                end, Data)
+        ),
+    {reply, {ReqId, Numbers}, State};
 handle_coverage(clear, _KeySpaces, {_, ReqId, _}, State) ->
-  log("Received clear coverage", State),
-  NewState = State#{data => #{}},
-  {reply, {ReqId, []}, NewState}.
+    log("Received clear coverage", State),
+    NewState = State#{data => #{}},
+    {reply, {ReqId, []}, NewState};
+handle_coverage(keys, _KeySpaces, {_, ReqId, _}, State = #{data := Data}) ->
+    log("Received keys coverage", State),
+    Keys = maps:keys(Data),
+    {reply, {ReqId, Keys}, State};
+handle_coverage(values, _KeySpaces, {_, ReqId, _}, State = #{data := Data}) ->
+    log("Received values coverage", State),
+    Values = maps:values(Data),
+    {reply, {ReqId, Values}, State}.
 
 handle_exit(_Pid, _Reason, State) ->
   {noreply, State}.

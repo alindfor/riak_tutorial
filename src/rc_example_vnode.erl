@@ -62,7 +62,7 @@ handle_command(Message, _Sender, State) ->
 %% See for reference:
 %% https://github.com/Kyorai/riak_core/blob/faf04f4820aff5bc876f79609fa838e1c86c0fb0/src/riak_core_vnode.erl#L312-L339
 %% https://github.com/basho/riak_kv/blob/d5cfe62d8f0ff36ead2019bde7a08cdd33fd3764/src/riak_kv_vnode.erl#L974-L984
-handle_handoff_command(?FOLD_REQ{foldfun=FoldFun, acc0=Acc0}, _Sender,
+handle_handoff_command(?FOLD_REQ{foldfun = FoldFun, acc0=Acc0}, _Sender,
                        State = #{data := Data}) ->
   %% this fold is synchronous, so even if a command can come in during the entire
   %% handoff process, we can safely assume that the state won't be modified

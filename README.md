@@ -1,9 +1,2 @@
-rc_example
-=====
+These are the files built while following the lambdaclass riak core tutorial
 
-An OTP application
-
-Build
------
-
-    $ rebar3 compile

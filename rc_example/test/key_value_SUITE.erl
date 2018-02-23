@@ -10,7 +10,8 @@ all() ->
   [
       ping_test,
       key_value_test,
-      exist_test
+      exist_test,
+      coverage_test
   ].
 
 init_per_suite(Config) ->
@@ -110,6 +111,45 @@ exist_test(Config) ->
         end, False),
     ok.
 
+coverage_test(Config) ->
+    [Node1, Node2|_] = ?config(nodes, Config),
+
+    ok = rc_command(Node1, clear),
+    [] - rc_coverage(Node1, keys),
+    [] = rc_coverage(Node1, values),
+
+    ToKey =
+        fun(N) ->
+            "key" ++ integer_to_list(N)
+        end,
+
+    ToValue =
+        fun(N) ->
+            "value" ++ integer_to_list(N)
+        end,
+
+    Range = lists:seq(1, 100),
+
+    lists:foreach(
+        fun(N) ->
+            ok = rc_command(Node1, put, [ToKey(N), ToValue(N)])
+        end, Range
+    ),
+
+    ActualKeys = rc_coverage(Node2, keys),
+    ActualValues = rc_coverage(Node2, values),
+
+    100 = length(ActualKeys),
+    100 = length(ActualValues),
+
+    true = have_same_elements(ActualKeys, lists:map(ToKey, Range)),
+    true = have_same_elements(ActualValues, lists:map(ToValue, Range)),
+
+    ok = rc_command(Node1, clear),
+    [] = rc_coverage(Node1, keys),
+    [] = rc_coverage(Node1, values),
+
+    ok.
 %% =============================================================================
 %% Internal Test HELPERS
 %% =============================================================================
@@ -150,3 +190,16 @@ rc_command(Node, Command) ->
     rc_command(Node, Command, []).
 rc_command(Node, Command, Arguments) ->
     rpc:call(Node, rc_example, Command, Arguments).
+
+rc_coverage(Node, Command) ->
+    {ok, List} = rc_command(Node, Command),
+    %% convert coverage result to plain list
+    lists:foldl(
+        fun({_Partition, _Node, Values}, Accum) ->
+            lists:append(Accum, Values)
+        end,[], List).
+
+have_same_elements(L1, L2) ->
+    S1 = sets:from_list(L1),
+    S2 = sets:from_list(L2),
+    sets:is_subset(S1, S2) andalso sets:is_subset(S2,S1).
